@@ -22,7 +22,7 @@ p = re.compile(r'''<a                  # <a로 시작하며
                   (.*?)                # 임의의 문자 반복
                   </a>                 # </a>가 나오기 전까지''', re.VERBOSE)
 
-p = re.compile(r'<a.*class="title".*?>.*?>(.*?)</a>')
+p = re.compile(r'<a.*class="title".*?>(.*?)</a>')
 
 result = re.findall(p, title)
 
