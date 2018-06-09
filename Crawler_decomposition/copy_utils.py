@@ -86,4 +86,175 @@ class Episode:
         # 저장된 이미지를 인터넷에서 볼 수 있도록 html 파일로 생성
         with open(f'data/{self.webtoon.webtoon_id}/{self.no}.html', 'a') as f:
             f.write(f'<img src = {self.no}/{file_name}')
-        
+
+class Webtoon:
+    def __init__(self, webtoon_id):
+        self.webtoon_id = webtoon_id
+        self._title = None
+        self._author = None
+        self._description = None
+        self._episode_list = list()
+        self._html = ''
+        self.page = 1
+
+    def _get_info(self, attr_name):
+        if not getattr(self, attr_name):
+            self.set_info()
+        return getattr(self, attr_name)
+
+    @property
+    def title(self):
+        return self._get_info('_title')
+
+    @property
+    def author(self):
+        return self._get_info('_author')
+
+    @property
+    def description(self):
+        return self._get_info('_description')
+
+    @property
+    def html(self):
+        # 인스턴스의 html속성값이 False(빈 문자열)일 경우
+        # HTML 파일을 저장하거나 불러올 경로
+        file_path = f'data/_episode_list-{self.webtoon_id}-{self.page}.html'
+
+        # HTTP 요청을 보낼 주소
+        url_episode_list = 'http://comic.naver.com/webtoon/list.nhn'
+
+        # HTTP 요청시 전달할 GET Parameters
+        params = {
+            'titleID': self.webtoon_id,
+            'page': self.page,
+        }
+
+        # HTML 파일이 저장되어있는지 검사
+        if os.path.exists(file_path):
+
+            # 저장되어 있다면, 해당 파일을 읽어서 html변수에 할당
+            html = open(file_path, 'rt').read()
+        else:
+            # 저장되어 있지 않다면, requests를 사용해 HTTP GET요청
+            response = requests.get(url_episode_list, params)
+            html = response.text
+            open(file_path, 'wt').write(html)
+        self._html = html
+        return self._html
+
+    @property
+    def info(self):
+        return f'{self.title}\n' \
+        f'작가 : {self.author}\n' \
+        f'줄거리 : {self.description}\n' \
+        f'총 연재 횟수 : {len(self.episode_list)}'
+
+    @classmethod
+    def all_webtoon_crawler(cls, keyword):
+        url = 'https://comic.naver.com/webtoon/weekday.nhn'
+        response = requests.get(url)
+
+        soup = BeautifulSoup(response.text, 'lxml')
+        all_webtoon_list = soup.select('div.col_inner > ul > li > a')
+
+        result = list()
+        for webtoon in all_webtoon_list:
+            title = webtoon.get_text()
+            if keyword in title:
+                href = webtoon.get('href', '')
+                query_string = parse.urlsplit(href).query
+                query_dict = dict(parse.parse_qs(query_string))
+                titleId = query_dict['titleId']
+                check = [item for item in result if item['titleId'] == titleId]
+                if not check:
+                    result.append({
+                        'titleId': titleId,
+                        'title': title,
+                    })
+        return result
+
+    @classmethod
+    def search_webtoon(cls, keyword):
+        """
+        :keyword 와 일치하는 웹툰 제목 검색
+        :param keyword:
+        :return:
+        """
+        search_result = cls.all_webtoon_crawler(keyword)
+        result_list = list()
+        if search_result:
+            for webtoon in search_result:
+                webtoon_title_id = cls(webtoon_id=webtoon['titleId'])
+                result_list.append(webtoon_title_id)
+        return result_list
+
+    def set_info(self):
+        """
+        자신의 html속성을 파싱한 결과를 사용해
+        자신의 title, author, description 속성값을 할당
+        :return:
+        """
+
+        # BeautifulSoup 클래스형 객체 생성 및 soup변수에 할당
+        soup = BeautifulSoup(self.html, 'lxml')
+
+        h2_title = soup.select_one('div.detail > h2')
+        title = h2_title.contents[0].strip()
+        author = h2_title.contents[1].get_text(strip=True)
+        description = soup.select_one('div.detail > p').get_text(strip=True)
+
+        # 자신의 html대이터를 사용해서 (웹에서 받아오거나, 파일에서 읽어온 결과)
+        # 자신들의 속성들을 지정
+        self._title = title
+        self._author = author
+        self._description = description
+
+    def crawl_episode(self):
+        """
+        자기자신의 webtoon_id에 해당하는 HTML문서에서 Episode목록을 생성
+        :return:
+        """
+
+        while True:
+            soup = BeautifulSoup(self.html, 'lxml')
+
+            table = soup.select_one('table.viewList')
+            tr_list = table.select('tr')
+            episode_list = ()
+
+            # 첫번째 tr은 thead의 tr이므로 제외, tr_list의 [1:]부터 순회
+            for index, tr in enumerate(tr_list[1:]):
+                # 에피소드에 해상다는 tr은 클래스가 없으므로,
+                # 현재 순회중인 tr요소가 클래스 속성값을 가진다면 continue
+                if tr.get('class'):
+                    continue
+
+                # 현재 tr의 첫번째 td요소의 하위 img태그의 'src'속성값
+                url_thumbnail = tr.select_one('td:nth-of-type(1) img').get('src')
+                url_detail = tr.select_one('td:nth-of-type(1) > a').get('href')
+                query_string = parse.urlsplit(url_detail).query
+                query_dict = parse.parse_qs(query_string)
+                no = query_dict['no'][0]
+
+                # 현새 tr의 두 번째 td요소의 자식 a요소의 내용
+                title = tr.select_one('td:nth-of-type(2) > a').get_text(strip=True)
+                rating = tr.select_one('td:nth-of-type(3) strong').get_text(strip=True)
+                created_date = tr.select_one('td:nth-of-type(4)').get_text(strip=True)
+
+                new_episode = Episode(
+                    webtoon=self,
+                    no=no,
+                    url_thumbnail=url_thumbnail,
+                    title=title,
+                    rating=rating,
+                    created_date=created_date,
+                )
+
+                self._episode_list.append(new_episode)
+            if no == '1':
+                break
+            else:
+                self.page += 1
+if __name__ == '__main__':
+    webtoon1 = Webtoon(703845)
+    webtoon1.info
