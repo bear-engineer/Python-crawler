@@ -36,5 +36,14 @@ soup = BeautifulSoup(html_doc, 'lxml')
 # print(soup.find_all('p'))
 
 # print(html_doc)
-for anchor in soup.find_all('a'):
-    print(anchor.get('href'))
+# for anchor in soup.find_all('a'):
+#     print(anchor.get('href'))
+
+html = open('weekday.html', 'rt').read()
+
+# div_content = soup.find('div', id='content')
+# div_list_area = div_content.find('div', class_='list')
+
+soup.select('a.title')
+for a in a_list:
+    print(a.get_text(strip=True))
