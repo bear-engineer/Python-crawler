@@ -3,6 +3,8 @@ import os
 import requests
 from urllib import parse
 
+
+
 def get_url():
     url = 'https://comic.naver.com/webtoon/weekday.nhn'
     file_path = 'data/webtoon_list.html'
@@ -26,15 +28,19 @@ def crawler():
     for item in title:
         href = item.get('href')
         query_dict = parse.parse_qs(parse.urlsplit(href).query)
-        webtoon_id = query_dict.get('titleId')
+        webtoon_id = query_dict.get('titleId')[0]
         webtoon_title = item.string
         title_list.append({
             'webtoon_id': webtoon_id,
             'title':webtoon_title,
         })
-
+    result_list = []
     for title_dict in title_list:
+        # result_list.append({title_dict['title']:title_dict['webtoon_id']})
         print(title_dict['title'], title_dict['webtoon_id'])
+    keyword = input()
+
+
 
 
 crawler()
