@@ -1,6 +1,6 @@
 import sys
 
-from copy_utils import Webtoon
+from utils import Webtoon
 
 
 def ini():
